@@ -4,6 +4,8 @@ A CoderPad-style interview practice playground that runs **real Python in your b
 Write code in a Monaco editor, press Run, and see real output, real tracebacks, and real
 package imports, with an interview timer ticking in the corner.
 
+**Live:** https://practicepad-psi.vercel.app
+
 ## Quick start
 
 ```bash
