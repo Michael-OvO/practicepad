@@ -615,6 +615,26 @@ button:disabled {
   color: var(--dim);
 }
 
+/* What the user typed for input(): part of the transcript, a shade apart from stdout. */
+.console-input-echo,
+.console-input {
+  color: var(--accent-text);
+}
+
+/* Inline where the program is waiting: no box, just a caret after the prompt. */
+.console-input {
+  display: inline-block;
+  min-width: 12ch;
+  max-width: 100%;
+  field-sizing: content;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  vertical-align: baseline;
+}
+
 .console-hint {
   max-width: 44ch;
   margin: 0;
@@ -694,6 +714,7 @@ button:disabled {
   background: var(--dim);
 }
 
+.runtime-idle .runtime-dot,
 .runtime-ready .runtime-dot {
   background: var(--accent-text);
 }
@@ -893,24 +914,3 @@ li:first-child > .palette-section {
     animation-iteration-count: 1 !important;
   }
 }
-/* What the user typed for input(): part of the transcript, a shade apart from stdout. */
-.console-input-echo,
-.console-input {
-  color: var(--accent-text);
-}
-
-/* Inline where the program is waiting: no box, just a caret after the prompt. */
-.console-input {
-  display: inline-block;
-  min-width: 12ch;
-  max-width: 100%;
-  field-sizing: content;
-  padding: 0;
-  border: 0;
-  outline: none;
-  background: transparent;
-  font: inherit;
-  vertical-align: baseline;
-}
-
-.runtime-idle .runtime-dot,
