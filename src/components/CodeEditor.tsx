@@ -1,5 +1,5 @@
 import Editor, { type BeforeMount, type OnMount } from "@monaco-editor/react";
-import { useEffect, useRef, type MutableRefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, type MutableRefObject } from "react";
 import type { ResolvedTheme } from "../theme/theme";
 
 interface CodeEditorProps {
@@ -46,8 +46,27 @@ const defineThemes: BeforeMount = (monaco) => {
   });
 };
 
+// Every prop handed to <Editor> below is kept stable across renders. The wrapper reacts to each
+// prop change with Monaco calls (options are re-applied, the change listener is re-registered),
+// so a fresh object or function per render would tax Monaco on every re-render of the app.
+const OPTIONS: Parameters<typeof Editor>[0]["options"] = {
+  fontSize: 14,
+  lineHeight: 21,
+  fontFamily: '"JetBrains Mono", "Fira Code", "SF Mono", Menlo, Consolas, monospace',
+  minimap: { enabled: false },
+  scrollBeyondLastLine: false,
+  automaticLayout: true,
+  tabSize: 4,
+  insertSpaces: true,
+  renderLineHighlight: "line",
+  overviewRulerBorder: false,
+  padding: { top: 12, bottom: 12 },
+};
+
+const LOADING = <div className="editor-loading">Loading editor…</div>;
+
 export function CodeEditor(props: CodeEditorProps) {
-  const { padId, initialCode, theme, focusRef, onChange } = props;
+  const { padId, initialCode, theme, focusRef } = props;
 
   // Monaco keeps these handlers registered from mount, so they reach the latest props through a ref.
   const latest = useRef(props);
@@ -55,17 +74,25 @@ export function CodeEditor(props: CodeEditorProps) {
     latest.current = props;
   });
 
-  const handleMount: OnMount = (editor, monaco) => {
-    // Replaces Monaco's default Cmd/Ctrl+Enter ("insert line below") with Run.
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => latest.current.onRun());
-    // Cmd/Ctrl+K is a chord prefix in Monaco; claim it for the command palette instead.
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK, () => latest.current.onOpenPalette());
-    editor.onDidChangeCursorPosition((event) => {
-      latest.current.onCursorChange(event.position.lineNumber, event.position.column);
-    });
-    focusRef.current = () => editor.focus();
-    editor.focus();
-  };
+  const handleMount: OnMount = useCallback(
+    (editor, monaco) => {
+      // Replaces Monaco's default Cmd/Ctrl+Enter ("insert line below") with Run.
+      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => latest.current.onRun());
+      // Cmd/Ctrl+K is a chord prefix in Monaco; claim it for the command palette instead.
+      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK, () => latest.current.onOpenPalette());
+      editor.onDidChangeCursorPosition((event) => {
+        latest.current.onCursorChange(event.position.lineNumber, event.position.column);
+      });
+      focusRef.current = () => editor.focus();
+      editor.focus();
+    },
+    [focusRef],
+  );
+
+  const handleChange = useCallback((value: string | undefined) => latest.current.onChange(value ?? ""), []);
+
+  // Only read when a pad is first opened, so it need not follow the text typed since.
+  const defaultValue = useMemo(() => initialCode, [padId]);
 
   return (
     <Editor
@@ -76,24 +103,12 @@ export function CodeEditor(props: CodeEditorProps) {
       path={`${padId}.py`}
       // Deliberately uncontrolled. With a `value` prop the wrapper rewrites the editor whenever
       // React's copy differs, and React's copy lags behind fast typing, so keystrokes got dropped.
-      defaultValue={initialCode}
-      onChange={(value) => onChange(value ?? "")}
+      defaultValue={defaultValue}
+      onChange={handleChange}
       beforeMount={defineThemes}
       onMount={handleMount}
-      loading={<div className="editor-loading">Loading editor…</div>}
-      options={{
-        fontSize: 14,
-        lineHeight: 21,
-        fontFamily: '"JetBrains Mono", "Fira Code", "SF Mono", Menlo, Consolas, monospace',
-        minimap: { enabled: false },
-        scrollBeyondLastLine: false,
-        automaticLayout: true,
-        tabSize: 4,
-        insertSpaces: true,
-        renderLineHighlight: "line",
-        overviewRulerBorder: false,
-        padding: { top: 12, bottom: 12 },
-      }}
+      loading={LOADING}
+      options={OPTIONS}
     />
   );
 }

@@ -9,6 +9,7 @@ interface StatusBarProps {
 }
 
 const STATUS_TEXT: Record<RunnerStatus, string> = {
+  idle: "Python loads on first run",
   loading: "Loading Python…",
   ready: "Python ready",
   running: "Running…",

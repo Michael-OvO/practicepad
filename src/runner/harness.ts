@@ -4,7 +4,7 @@ import harnessSource from "./harness.py?raw";
 export interface Harness {
   findMissingImports(code: string): string[];
   installMissing(names: string[], report: (message: string) => void): Promise<void>;
-  runMain(code: string): number;
+  runMain(code: string, interactive: boolean): number;
 }
 
 type PyFunction = (...args: unknown[]) => unknown;
@@ -38,7 +38,7 @@ export function loadHarness(pyodide: PyodideInterface): Harness {
     async installMissing(names, report) {
       await (installMissing(names, report) as PromiseLike<unknown>);
     },
-    runMain: (code) => runMain(code) as number,
+    runMain: (code, interactive) => runMain(code, interactive) as number,
   };
 }
 
@@ -50,6 +50,7 @@ export async function runProgram(
   harness: Harness,
   code: string,
   report: (message: string) => void,
+  interactive = false,
 ): Promise<number> {
   if (harness.findMissingImports(code).length > 0) {
     try {
@@ -69,5 +70,5 @@ export async function runProgram(
       report(`Could not load packages: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
-  return harness.runMain(code);
+  return harness.runMain(code, interactive);
 }

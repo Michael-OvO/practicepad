@@ -9,12 +9,17 @@ interface RightPaneProps {
   tab: RightTab;
   consoleState: ConsoleState;
   status: RunnerStatus;
+  /** The program is blocked reading stdin: show the field. */
+  awaitingInput: boolean;
   padId: string;
-  notes: string;
+  /** Only used when a pad's notes are first shown; after that the textarea owns the text. */
+  initialNotes: string;
   onTabChange(tab: RightTab): void;
   onNotesChange(notes: string): void;
   onClear(): void;
   onRetry(): void;
+  onInput(line: string): void;
+  onEndInput(): void;
 }
 
 const TABS: { id: RightTab; label: string }[] = [
@@ -68,10 +73,10 @@ export function RightPane(props: RightPaneProps) {
 
 const STICK_THRESHOLD_PX = 24;
 
-function OutputPanel({ consoleState, status, onRetry }: RightPaneProps) {
+function OutputPanel({ consoleState, status, awaitingInput, onRetry, onInput, onEndInput }: RightPaneProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
-  const isEmpty = consoleState.segments.length === 0;
+  const isEmpty = consoleState.segments.length === 0 && !awaitingInput;
 
   // Follow new output unless the user has scrolled up to read something.
   useLayoutEffect(() => {
@@ -79,7 +84,18 @@ function OutputPanel({ consoleState, status, onRetry }: RightPaneProps) {
     if (!element) return;
     if (isEmpty) stickToBottom.current = true;
     if (stickToBottom.current) element.scrollTop = element.scrollHeight;
-  }, [consoleState, isEmpty]);
+  }, [consoleState, isEmpty, awaitingInput]);
+
+  const onInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      onInput(event.currentTarget.value);
+    } else if (event.key === "d" && event.ctrlKey) {
+      // End-of-file, as in a terminal.
+      event.preventDefault();
+      onEndInput();
+    }
+  };
 
   return (
     <div
@@ -103,10 +119,22 @@ function OutputPanel({ consoleState, status, onRetry }: RightPaneProps) {
         <pre className="console-text">
           {consoleState.truncated && <span className="console-system">… earlier output truncated{"\n"}</span>}
           {consoleState.segments.map((segment) => (
-            <span key={segment.id} className={`console-${segment.kind}`}>
+            <span key={segment.id} className={`console-${segment.kind === "input" ? "input-echo" : segment.kind}`}>
               {segment.text}
             </span>
           ))}
+          {awaitingInput && (
+            // Inline, right after the prompt the program printed. Mounted per read, so it is
+            // empty and focused each time.
+            <input
+              className="console-input"
+              aria-label="Program input"
+              autoFocus
+              spellCheck={false}
+              autoComplete="off"
+              onKeyDown={onInputKeyDown}
+            />
+          )}
         </pre>
       )}
       {status === "error" && (
@@ -118,7 +146,7 @@ function OutputPanel({ consoleState, status, onRetry }: RightPaneProps) {
   );
 }
 
-function NotesPanel({ padId, notes, onNotesChange }: RightPaneProps) {
+function NotesPanel({ padId, initialNotes, onNotesChange }: RightPaneProps) {
   return (
     <div id="panel-notes" className="notes-panel" role="tabpanel" aria-labelledby="tab-notes">
       <textarea
@@ -127,7 +155,8 @@ function NotesPanel({ padId, notes, onNotesChange }: RightPaneProps) {
         className="notes-input"
         aria-label="Notes for this pad"
         placeholder="Problem statement, examples, edge cases, your approach. Saved with this pad."
-        value={notes}
+        // Uncontrolled, like the code editor: keystrokes then need no render of the app.
+        defaultValue={initialNotes}
         spellCheck={false}
         onChange={(event) => onNotesChange(event.target.value)}
       />

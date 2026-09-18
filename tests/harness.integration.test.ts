@@ -19,11 +19,16 @@ function capture(sink: (text: string) => void) {
   };
 }
 
-async function run(code: string) {
+type Script = (string | null)[];
+
+/** Runs `code`; `script` answers stdin reads in order (null = EOF), and undefined means no stdin. */
+async function run(code: string, script?: Script) {
   stdout = "";
   stderr = "";
   const statuses: string[] = [];
-  const exitCode = await runProgram(pyodide, harness, code, (message) => statuses.push(message));
+  const lines = script ? [...script] : [];
+  pyodide.setStdin({ stdin: () => (lines.length > 0 ? lines.shift()! : null) });
+  const exitCode = await runProgram(pyodide, harness, code, (message) => statuses.push(message), script !== undefined);
   return { exitCode, stdout, stderr, statuses };
 }
 
@@ -96,10 +101,26 @@ describe("python harness", () => {
     expect((await run("print('visible')")).stdout).toBe("visible\n");
   });
 
-  it("rejects input() with a clear message", async () => {
+  it("feeds input() from stdin, prompt included in stdout", async () => {
+    const result = await run('name = input("name? ")\nprint("Hello,", name)', ["Ada"]);
+    expect(result).toMatchObject({ exitCode: 0, stdout: "name? Hello, Ada\n", stderr: "" });
+  });
+
+  it("raises EOFError from input() at end-of-file", async () => {
+    const result = await run("input()", []);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("EOFError");
+  });
+
+  it("reads sys.stdin to EOF, then lets a later input() read again", async () => {
+    const result = await run("import sys\nprint(repr(sys.stdin.read()))\nprint(input())", ["a", "b", null, "c"]);
+    expect(result).toMatchObject({ exitCode: 0, stdout: "'a\\nb\\n'\nc\n" });
+  });
+
+  it("explains why input() is unavailable when the page cannot share memory", async () => {
     const result = await run('name = input("name? ")');
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("RuntimeError: input() is not supported in this playground");
+    expect(result.stderr).toContain("RuntimeError: input() is not available: this page is not cross-origin isolated");
   });
 
   it("finds imports that are not installed, ignoring relative imports and broken code", () => {

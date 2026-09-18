@@ -15,13 +15,28 @@ const AUTOSAVE_DELAY_MS = 500;
 
 export function usePads() {
   const [session] = useState(() => new PadSession(getStorage()));
-  const state = useSyncExternalStore(session.subscribe, session.getState);
+  // Keystrokes are not published (see PadSession), so `state` is not re-rendered for each one.
+  const state = useSyncExternalStore(session.subscribe, session.getSnapshot);
   const [saveFailed, setSaveFailed] = useState(false);
 
+  // Debounced from the session's own change events: those include the keystrokes React never sees.
   useEffect(() => {
-    const timer = window.setTimeout(() => setSaveFailed(!session.save()), AUTOSAVE_DELAY_MS);
-    return () => window.clearTimeout(timer);
-  }, [session, state]);
+    let timer: number | null = null;
+    const schedule = () => {
+      if (timer !== null) window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        timer = null;
+        setSaveFailed(!session.save());
+      }, AUTOSAVE_DELAY_MS);
+    };
+    // Persists a freshly created first pad before anything is typed into it.
+    schedule();
+    const unsubscribe = session.onChange(schedule);
+    return () => {
+      unsubscribe();
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, [session]);
 
   // Closing or reloading the tab inside the debounce window must not lose the last edit.
   // The session is read directly because React may not have rendered the latest keystrokes yet.
@@ -44,19 +59,20 @@ export function usePads() {
     [session],
   );
   const updateCode = useCallback(
-    (id: string, code: string) => session.apply((current) => updatePadCode(current, id, code)),
+    (id: string, code: string) => session.edit(id, (current) => updatePadCode(current, id, code)),
     [session],
   );
   const updateNotes = useCallback(
-    (id: string, notes: string) => session.apply((current) => updatePadNotes(current, id, notes)),
+    (id: string, notes: string) => session.edit(id, (current) => updatePadNotes(current, id, notes)),
     [session],
   );
   const remove = useCallback((id: string) => session.apply((current) => deletePad(current, id)), [session]);
-  /** The active pad's code as of the last keystroke, even if React has not re-rendered yet. */
-  const getActiveCode = useCallback(() => activePad(session.getState()).code, [session]);
+  /** The active pad as of the last keystroke; the rendered `active` lags behind it while typing. */
+  const getActive = useCallback(() => activePad(session.getState()), [session]);
 
   return {
     pads: state.pads,
+    /** What React shows about the active pad. Its code and notes lag while typing: see getActive(). */
     active: activePad(state),
     saveFailed,
     create,
@@ -65,6 +81,6 @@ export function usePads() {
     updateCode,
     updateNotes,
     remove,
-    getActiveCode,
+    getActive,
   };
 }

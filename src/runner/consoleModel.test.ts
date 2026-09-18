@@ -21,6 +21,11 @@ describe("appendText", () => {
     ]);
   });
 
+  it("keeps echoed input apart from program output", () => {
+    const state = appendText(appendText(emptyConsole, "stdout", "name? "), "input", "Ada\n");
+    expect(state.segments.map((segment) => segment.kind)).toEqual(["stdout", "input"]);
+  });
+
   it("starts a new segment once the last one is large, so updates stay cheap", () => {
     let state = appendText(emptyConsole, "stdout", "x".repeat(5000));
     state = appendText(state, "stdout", "y");

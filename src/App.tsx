@@ -35,14 +35,14 @@ export function App() {
   const [cursorStore] = useState(() => new CursorStore());
   const focusEditorRef = useRef<(() => void) | null>(null);
 
-  const { active, updateCode, updateNotes, rename, select, create, remove, getActiveCode } = pads;
+  const { active, updateCode, updateNotes, rename, select, create, remove, getActive } = pads;
   const { run, stop, clear, status } = runner;
 
   // Read from the pad session, not from render state, so Run sees the very last keystroke.
   const runActive = useCallback(() => {
     setRightTab("output");
-    run(getActiveCode());
-  }, [run, getActiveCode]);
+    run(getActive().code);
+  }, [run, getActive]);
 
   const openPalette = useCallback(() => setPaletteOpen(true), []);
   const closePalette = useCallback(() => setPaletteOpen(false), []);
@@ -200,7 +200,8 @@ export function App() {
               <div className="editor-host">
                 <CodeEditor
                   padId={active.id}
-                  initialCode={active.code}
+                  // Read live: the rendered snapshot's copy of the text lags behind the editor.
+                  initialCode={getActive().code}
                   theme={theme.theme}
                   focusRef={focusEditorRef}
                   onChange={handleChange}
@@ -216,12 +217,15 @@ export function App() {
               tab={rightTab}
               consoleState={runner.consoleState}
               status={status}
+              awaitingInput={runner.awaitingInput}
               padId={active.id}
-              notes={active.notes}
+              initialNotes={getActive().notes}
               onTabChange={setRightTab}
               onNotesChange={handleNotes}
               onClear={clear}
               onRetry={runner.retry}
+              onInput={runner.provideInput}
+              onEndInput={runner.endInput}
             />
           }
         />

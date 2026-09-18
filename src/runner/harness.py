@@ -13,6 +13,7 @@ import types
 HOME = "/home/pyodide"
 MAIN_NAME = "main.py"
 DEFAULT_RECURSION_LIMIT = sys.getrecursionlimit()
+REAL_INPUT = builtins.input
 
 # Import names whose PyPI package name differs.
 PACKAGE_ALIASES = {
@@ -27,7 +28,7 @@ PACKAGE_ALIASES = {
 
 
 def _blocked_input(prompt=""):
-    raise RuntimeError("input() is not supported in this playground")
+    raise RuntimeError("input() is not available: this page is not cross-origin isolated")
 
 
 def find_missing_imports(code):
@@ -68,14 +69,18 @@ async def install_missing(names, report):
     importlib.invalidate_caches()
 
 
-def run_main(code):
-    """Execute `code` as a fresh __main__ module and return the exit code."""
+def run_main(code, interactive):
+    """Execute `code` as a fresh __main__ module and return the exit code.
+
+    `interactive` says whether stdin is wired to the page; without it, input() explains itself
+    instead of blocking forever or returning EOF.
+    """
     # Undo anything a previous run may have left behind, as a new process would.
     sys.stdout = sys.__stdout__
     sys.stderr = sys.__stderr__
     sys.setrecursionlimit(DEFAULT_RECURSION_LIMIT)
     sys.argv = [MAIN_NAME]
-    builtins.input = _blocked_input
+    builtins.input = REAL_INPUT if interactive else _blocked_input
     os.chdir(HOME)
 
     with open(MAIN_NAME, "w", encoding="utf-8") as file:
