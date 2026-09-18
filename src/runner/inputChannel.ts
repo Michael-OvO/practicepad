@@ -25,11 +25,16 @@ export function createInputChannel(): SharedArrayBuffer | null {
   return new SharedArrayBuffer(INPUT_CHANNEL_BYTES);
 }
 
+// Browsers refuse to encode into, or decode from, shared memory directly, so the text goes
+// through a private buffer of the same size on either side.
+const CAPACITY = INPUT_CHANNEL_BYTES - HEADER_BYTES;
+
 export function writeLine(channel: SharedArrayBuffer, text: string): void {
   const header = new Int32Array(channel);
-  const bytes = new Uint8Array(channel, HEADER_BYTES);
+  const scratch = new Uint8Array(CAPACITY);
   // encodeInto never writes a partial character, so a cut line is still valid UTF-8.
-  const { written } = new TextEncoder().encodeInto(text, bytes);
+  const { written } = new TextEncoder().encodeInto(text, scratch);
+  new Uint8Array(channel, HEADER_BYTES).set(scratch.subarray(0, written));
   Atomics.store(header, LENGTH, written);
   Atomics.store(header, STATE, LINE);
   Atomics.notify(header, STATE);
@@ -48,7 +53,12 @@ export function readLine(channel: SharedArrayBuffer): string | null {
   Atomics.wait(header, STATE, EMPTY);
   const state = Atomics.load(header, STATE);
   const length = Atomics.load(header, LENGTH);
-  const text = state === LINE ? new TextDecoder().decode(new Uint8Array(channel, HEADER_BYTES, length)) : null;
+  let text: string | null = null;
+  if (state === LINE) {
+    const copy = new Uint8Array(length);
+    copy.set(new Uint8Array(channel, HEADER_BYTES, length));
+    text = new TextDecoder().decode(copy);
+  }
   Atomics.store(header, STATE, EMPTY);
   return text;
 }

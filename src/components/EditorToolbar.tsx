@@ -21,9 +21,9 @@ export function EditorToolbar({ status, onRun, onStop }: EditorToolbarProps) {
         <button
           type="button"
           className="run-button"
-          title={status === "ready" ? `Run (${RUN_SHORTCUT_LABEL})` : "Python is still loading"}
+          title={status === "loading" ? "Python is still loading" : `Run (${RUN_SHORTCUT_LABEL})`}
           onClick={onRun}
-          disabled={status !== "ready"}
+          disabled={status === "loading" || status === "error"}
         >
           <PlayIcon />
           Run

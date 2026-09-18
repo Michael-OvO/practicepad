@@ -217,12 +217,15 @@ export function App() {
               tab={rightTab}
               consoleState={runner.consoleState}
               status={status}
+              awaitingInput={runner.awaitingInput}
               padId={active.id}
               initialNotes={getActive().notes}
               onTabChange={setRightTab}
               onNotesChange={handleNotes}
               onClear={clear}
               onRetry={runner.retry}
+              onInput={runner.provideInput}
+              onEndInput={runner.endInput}
             />
           }
         />

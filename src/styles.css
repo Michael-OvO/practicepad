@@ -893,3 +893,24 @@ li:first-child > .palette-section {
     animation-iteration-count: 1 !important;
   }
 }
+/* What the user typed for input(): part of the transcript, a shade apart from stdout. */
+.console-input-echo,
+.console-input {
+  color: var(--accent-text);
+}
+
+/* Inline where the program is waiting: no box, just a caret after the prompt. */
+.console-input {
+  display: inline-block;
+  min-width: 12ch;
+  max-width: 100%;
+  field-sizing: content;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  vertical-align: baseline;
+}
+
+.runtime-idle .runtime-dot,

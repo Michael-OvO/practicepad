@@ -14,6 +14,7 @@ interface PendingText {
 export function usePythonRunner() {
   const [status, setStatus] = useState<RunnerStatus>("idle");
   const [consoleState, setConsoleState] = useState<ConsoleState>(emptyConsole);
+  const [awaitingInput, setAwaitingInput] = useState(false);
   const controllerRef = useRef<RunnerController | null>(null);
   const pendingRef = useRef<PendingText[]>([]);
   const timerRef = useRef<number | null>(null);
@@ -46,7 +47,14 @@ export function usePythonRunner() {
         if (timerRef.current === null) timerRef.current = window.setTimeout(commit, COMMIT_INTERVAL_MS);
       },
       clear,
-      awaitingInput: () => {},
+      awaitingInput: (waiting) => {
+        // The prompt was queued just before the request; show it before the field.
+        if (waiting && timerRef.current !== null) {
+          window.clearTimeout(timerRef.current);
+          commit();
+        }
+        setAwaitingInput(waiting);
+      },
     });
     controllerRef.current = controller;
 
@@ -60,6 +68,8 @@ export function usePythonRunner() {
   const run = useCallback((code: string) => controllerRef.current?.run(code), []);
   const stop = useCallback(() => controllerRef.current?.stop(), []);
   const retry = useCallback(() => controllerRef.current?.retry(), []);
+  const provideInput = useCallback((line: string) => controllerRef.current?.provideInput(line), []);
+  const endInput = useCallback(() => controllerRef.current?.endInput(), []);
 
-  return { status, consoleState, run, stop, retry, clear };
+  return { status, consoleState, awaitingInput, run, stop, retry, clear, provideInput, endInput };
 }
