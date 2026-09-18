@@ -103,6 +103,75 @@ test("timer counts down and survives a reload", async ({ page }) => {
   await expect(page.getByRole("timer").getByRole("button", { name: "Pause" })).toBeVisible();
 });
 
+test("session length is set from the timer's popover", async ({ page }) => {
+  await page.goto("/");
+  const timer = page.getByRole("timer");
+  const openLengths = timer.getByRole("button", { name: /Session length/ });
+  const lengths = page.getByRole("dialog", { name: "Session length" });
+  const ruler = lengths.getByRole("slider");
+
+  // The ruler takes focus on opening: arrows move a minute, Shift+arrow to the next multiple of five.
+  await openLengths.click();
+  await expect(ruler).toBeFocused();
+  await page.keyboard.press("ArrowLeft");
+  await expect(timer).toContainText("44:00");
+  await page.keyboard.press("Shift+ArrowLeft");
+  await expect(timer).toContainText("40:00");
+
+  await lengths.getByRole("button", { name: "30 min" }).click();
+  await expect(timer).toContainText("30:00");
+  await expect(lengths).toBeVisible();
+
+  // Escape hands the keyboard back to the timer rather than dropping it on <body>.
+  await page.keyboard.press("Escape");
+  await expect(lengths).toBeHidden();
+  await expect(openLengths).toBeFocused();
+  await openLengths.click();
+
+  // Pulling the ruler left brings later minutes under the needle, 7px to the minute.
+  const box = (await ruler.boundingBox())!;
+  const [x, y] = [box.x + box.width / 2, box.y + box.height / 2];
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x - 70, y, { steps: 5 });
+  await page.mouse.up();
+  await expect(timer).toContainText("40:00");
+
+  await lengths.getByRole("spinbutton", { name: "Minutes" }).fill("52");
+  await expect(timer).toContainText("52:00");
+  await page.keyboard.press("Enter");
+  await expect(lengths).toBeHidden();
+  await expect(openLengths).toBeFocused();
+
+  // The length is locked once the session starts.
+  await timer.getByRole("button", { name: "Start" }).click();
+  await expect(openLengths).toHaveCount(0);
+});
+
+test("resetting a session in progress takes a second, deliberate click", async ({ page }) => {
+  await page.goto("/");
+  const timer = page.getByRole("timer");
+  await timer.getByRole("button", { name: "Start" }).click();
+  await expect(page).toHaveTitle(/^44:\d\d · PracticePad$/);
+
+  // A double-click only arms it; the clock keeps running.
+  await timer.getByRole("button", { name: "Reset" }).dblclick();
+  const confirm = timer.getByRole("button", { name: "Reset?" });
+  await expect(confirm).toBeVisible();
+  await expect(timer).toContainText(/44:\d\d/);
+
+  await page.keyboard.press("Escape");
+  await expect(confirm).toHaveCount(0);
+  await expect(timer.getByRole("button", { name: "Pause" })).toBeVisible();
+
+  await timer.getByRole("button", { name: "Reset" }).click();
+  await page.waitForTimeout(500); // Past the guard that ignores the second half of a double-click.
+  await confirm.click();
+  await expect(timer).toContainText("45:00");
+  await expect(timer.getByRole("button", { name: "Start" })).toBeVisible();
+  await expect(page).toHaveTitle("PracticePad");
+});
+
 test("command palette drives the app from the keyboard", async ({ page }) => {
   await page.goto("/");
   const palette = page.getByRole("dialog", { name: "Command palette" });

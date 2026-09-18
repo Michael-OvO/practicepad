@@ -1,24 +1,31 @@
 import { useCallback, useEffect, useState } from "react";
 import { getStorage } from "../storage";
+import { createTicker } from "./createTicker";
 import {
   TIMER_KEY,
   parseTimer,
   pause as pauseTimer,
+  remainingFraction,
   remainingMs,
   reset as resetTimer,
   resume as resumeTimer,
   setDuration,
   start as startTimer,
   timerPhase,
+  timerTitle,
   type TimerPhase,
   type TimerState,
 } from "./timer";
 
 const TICK_MS = 250;
+// Matches <title> in index.html.
+const APP_TITLE = "PracticePad";
 
 export interface TimerControls {
   state: TimerState;
   remainingMs: number;
+  /** Share of the session still left, from 1 down to 0. */
+  fraction: number;
   phase: TimerPhase;
   start(): void;
   pause(): void;
@@ -41,9 +48,14 @@ export function useTimer(): TimerControls {
 
   useEffect(() => {
     if (state.status !== "running") return;
-    const interval = window.setInterval(() => setNow(Date.now()), TICK_MS);
-    return () => window.clearInterval(interval);
+    return createTicker(() => setNow(Date.now()), TICK_MS);
   }, [state.status]);
+
+  // Keeps the countdown readable from another tab.
+  const title = timerTitle(state, now, APP_TITLE);
+  useEffect(() => {
+    document.title = title;
+  }, [title]);
 
   // Every transition also refreshes `now`, so the readout never uses a stale clock.
   const apply = useCallback((transition: (current: TimerState, at: number) => TimerState) => {
@@ -58,5 +70,15 @@ export function useTimer(): TimerControls {
   const reset = useCallback(() => apply((current) => resetTimer(current)), [apply]);
   const setMinutes = useCallback((minutes: number) => apply((current) => setDuration(current, minutes)), [apply]);
 
-  return { state, remainingMs: remainingMs(state, now), phase: timerPhase(state, now), start, pause, resume, reset, setMinutes };
+  return {
+    state,
+    remainingMs: remainingMs(state, now),
+    fraction: remainingFraction(state, now),
+    phase: timerPhase(state, now),
+    start,
+    pause,
+    resume,
+    reset,
+    setMinutes,
+  };
 }

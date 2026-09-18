@@ -13,10 +13,20 @@ export const MAX_MINUTES = 180;
 
 const MINUTE_MS = 60_000;
 const WARNING_MS = 5 * MINUTE_MS;
+const STEP_MINUTES = 5;
 
 export function clampMinutes(minutes: number): number {
   if (!Number.isFinite(minutes)) return DEFAULT_MINUTES;
   return Math.min(MAX_MINUTES, Math.max(MIN_MINUTES, Math.round(minutes)));
+}
+
+/** The custom length one step up or down: the neighbouring multiple of five. */
+export function stepMinutes(minutes: number, direction: 1 | -1): number {
+  const stepped =
+    direction === 1
+      ? (Math.floor(minutes / STEP_MINUTES) + 1) * STEP_MINUTES
+      : (Math.ceil(minutes / STEP_MINUTES) - 1) * STEP_MINUTES;
+  return clampMinutes(stepped);
 }
 
 export function idleTimer(minutes: number = DEFAULT_MINUTES): TimerState {
@@ -32,6 +42,12 @@ export function remainingMs(state: TimerState, now: number): number {
     case "running":
       return Math.max(0, state.endsAt - now);
   }
+}
+
+/** Share of the session still left, from 1 down to 0. Stored states are not trusted to be sane. */
+export function remainingFraction(state: TimerState, now: number): number {
+  if (state.durationMs <= 0) return 0;
+  return Math.min(1, remainingMs(state, now) / state.durationMs);
 }
 
 export function start(state: TimerState, now: number): TimerState {
@@ -69,6 +85,14 @@ export function formatRemaining(ms: number): string {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+/** Browser tab title, so the clock can be read from another tab. */
+export function timerTitle(state: TimerState, now: number, appTitle: string): string {
+  if (state.status === "idle") return appTitle;
+  if (timerPhase(state, now) === "expired") return `Time's up · ${appTitle}`;
+  const left = formatRemaining(remainingMs(state, now));
+  return `${left}${state.status === "paused" ? " paused" : ""} · ${appTitle}`;
 }
 
 export function parseTimer(raw: string | null): TimerState {

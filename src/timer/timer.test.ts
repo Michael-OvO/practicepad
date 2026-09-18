@@ -5,12 +5,15 @@ import {
   idleTimer,
   parseTimer,
   pause,
+  remainingFraction,
   remainingMs,
   reset,
   resume,
   setDuration,
   start,
+  stepMinutes,
   timerPhase,
+  timerTitle,
 } from "./timer";
 
 const MINUTE = 60_000;
@@ -81,6 +84,61 @@ describe("timerPhase", () => {
 
   it("stays normal while idle, even for short durations", () => {
     expect(timerPhase(idleTimer(3), 0)).toBe("normal");
+  });
+});
+
+describe("remainingFraction", () => {
+  it("is full while idle and drains to zero as a running session passes", () => {
+    const running = start(idleTimer(30), 0);
+    expect(remainingFraction(idleTimer(30), 999)).toBe(1);
+    expect(remainingFraction(running, 0)).toBe(1);
+    expect(remainingFraction(running, 7.5 * MINUTE)).toBe(0.75);
+    expect(remainingFraction(running, 99 * MINUTE)).toBe(0);
+  });
+
+  it("freezes while paused", () => {
+    expect(remainingFraction(pause(start(idleTimer(30), 0), 15 * MINUTE), 99 * MINUTE)).toBe(0.5);
+  });
+
+  it("stays within 0-1 for stored states that make no sense", () => {
+    expect(remainingFraction({ status: "paused", durationMs: MINUTE, remainingMs: 5 * MINUTE }, 0)).toBe(1);
+    expect(remainingFraction({ status: "idle", durationMs: 0 }, 0)).toBe(0);
+  });
+});
+
+describe("stepMinutes", () => {
+  it("moves to the neighbouring multiple of five", () => {
+    expect(stepMinutes(45, 1)).toBe(50);
+    expect(stepMinutes(45, -1)).toBe(40);
+    expect(stepMinutes(47, 1)).toBe(50);
+    expect(stepMinutes(47, -1)).toBe(45);
+  });
+
+  it("stays within 1-180 minutes", () => {
+    expect(stepMinutes(1, 1)).toBe(5);
+    expect(stepMinutes(3, -1)).toBe(1);
+    expect(stepMinutes(1, -1)).toBe(1);
+    expect(stepMinutes(178, 1)).toBe(180);
+    expect(stepMinutes(180, 1)).toBe(180);
+  });
+});
+
+describe("timerTitle", () => {
+  it("is just the app name while idle", () => {
+    expect(timerTitle(idleTimer(), 0, "PracticePad")).toBe("PracticePad");
+  });
+
+  it("leads with the time left while running", () => {
+    expect(timerTitle(start(idleTimer(45), 0), 12 * MINUTE + 46_000, "PracticePad")).toBe("32:14 · PracticePad");
+  });
+
+  it("says when the clock is paused", () => {
+    const paused = pause(start(idleTimer(45), 0), 12 * MINUTE + 46_000);
+    expect(timerTitle(paused, 99 * MINUTE, "PracticePad")).toBe("32:14 paused · PracticePad");
+  });
+
+  it("announces the end instead of showing 00:00", () => {
+    expect(timerTitle(start(idleTimer(1), 0), 5 * MINUTE, "PracticePad")).toBe("Time's up · PracticePad");
   });
 });
 

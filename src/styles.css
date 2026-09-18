@@ -296,54 +296,349 @@ button:disabled {
   display: flex;
   flex: none;
   align-items: center;
-  gap: 6px;
+  gap: 2px;
+  /* Running, paused, confirming and expired all share one width, so the bar holds still mid-session. */
+  min-width: 138px;
   height: 28px;
-  padding: 0 3px 0 10px;
+  padding: 0 2px;
   border: 1px solid var(--border);
   border-radius: 6px;
-  transition: border-color 150ms, background-color 150ms;
+  background: var(--editor-bg);
+  anchor-name: --timer;
+  transition: border-color 300ms, background-color 300ms;
+}
+
+.timer-face {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 22px;
+  padding: 0 6px 0 5px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  transition: background-color 150ms;
+}
+
+button.timer-face:hover,
+.timer:has(+ .timer-popover:popover-open) .timer-face {
+  background: var(--raised);
+}
+
+.timer-face > svg:last-child {
+  margin-left: -3px;
+  color: var(--dim);
+}
+
+.timer-ring {
+  flex: none;
+  color: var(--dim);
+  transform: rotate(-90deg);
+  transition: color 300ms;
+}
+
+.timer-ring circle {
+  fill: none;
+  stroke-width: 1.75;
+}
+
+.timer-ring-track {
+  stroke: color-mix(in srgb, currentColor 24%, transparent);
+}
+
+.timer-ring-arc {
+  stroke: currentColor;
+  stroke-linecap: round;
+}
+
+/* Only at rest: the ring sweeps back to full after a reset, but never chases the running clock. */
+.timer.is-idle .timer-ring-arc {
+  transition: stroke-dasharray 500ms var(--ease-out), stroke-dashoffset 500ms var(--ease-out);
+}
+
+.timer-readout,
+.timer-label {
+  font-weight: 600;
+  white-space: nowrap;
+  transition: color 300ms;
 }
 
 .timer-readout {
-  min-width: 5ch;
-  font: 600 13px var(--mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.timer-colon {
+  position: relative;
+  top: -0.06em;
+  margin: 0 0.04em;
+}
+
+/* At rest the ring is a quiet outline; it takes colour once the clock is live. */
+.timer.is-idle .timer-ring {
+  color: color-mix(in srgb, var(--dim) 65%, transparent);
+}
+
+.timer.is-running .timer-ring {
+  color: var(--accent-text);
+}
+
+.timer.timer-warning .timer-ring,
+.timer.timer-warning .timer-readout {
+  color: var(--warn);
+}
+
+.timer.is-paused .timer-ring,
+.timer.is-paused .timer-readout {
+  color: var(--dim);
+}
+
+.timer.is-paused .timer-colon {
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+.timer.timer-expired {
+  border-color: color-mix(in srgb, var(--danger) 50%, var(--border));
+  background: color-mix(in srgb, var(--danger) 8%, var(--editor-bg));
+}
+
+.timer.timer-expired .timer-ring,
+.timer-label {
+  color: var(--danger);
+}
+
+/* The arc is gone by now, so the empty track has to carry the colour. */
+.timer.timer-expired .timer-ring-track {
+  stroke: color-mix(in srgb, currentColor 50%, transparent);
+}
+
+.timer-controls {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.timer-control {
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+}
+
+.timer-start,
+.timer-confirm {
+  width: auto;
+  height: 22px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  transition: background-color 150ms;
+}
+
+.timer-start {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent-text);
+}
+
+.timer-start:hover {
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
+}
+
+.timer-confirm {
+  padding: 0 7px;
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  color: var(--danger);
+}
+
+.timer-confirm:hover {
+  background: color-mix(in srgb, var(--danger) 26%, transparent);
+}
+
+/* Session length popover */
+
+.timer-popover {
+  position: fixed;
+  inset: 42px 12px auto auto;
+  width: 272px;
+  margin: 0;
+  padding: 14px 16px 10px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  transform-origin: top right;
+}
+
+/* Hang it from the timer where the browser can; otherwise it sits under the top bar's right end. */
+@supports (anchor-name: --timer) {
+  .timer-popover {
+    position-anchor: --timer;
+    top: calc(anchor(bottom) + 8px);
+    right: anchor(right);
+  }
+}
+
+.timer-popover:popover-open {
+  animation: pop-in 140ms var(--ease-out);
+}
+
+.length-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.length-title {
+  font-weight: 600;
+}
+
+.length-ends {
+  color: var(--dim);
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
-.timer-warning {
-  border-color: var(--warn);
-}
-
-.timer-warning .timer-readout {
-  color: var(--warn);
-}
-
-.timer-expired {
-  border-color: var(--danger);
-  background: color-mix(in srgb, var(--danger) 14%, transparent);
-}
-
-.timer-expired .timer-readout {
-  color: var(--danger);
-}
-
-.timer select,
-.timer input {
-  height: 22px;
-  padding: 0 4px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--editor-bg);
+/* Three columns keep the number itself, not number-plus-unit, centred over the needle. */
+.length-value {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: baseline;
+  gap: 2px;
+  margin-top: 12px;
+  color: var(--dim);
   font-size: 12px;
 }
 
-.timer input {
-  width: 54px;
+.length-input {
+  grid-column: 2;
+  width: 50px;
+  padding: 0 2px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  appearance: textfield;
+  background: transparent;
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  text-align: center;
+  transition: border-color 150ms, background-color 150ms;
 }
 
-.timer .text-button {
-  height: 22px;
+.length-input::-webkit-inner-spin-button,
+.length-input::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+.length-input:hover {
+  border-color: var(--border);
+}
+
+.length-input:focus {
+  border-color: var(--focus);
+  outline: none;
+  background: var(--editor-bg);
+}
+
+/* The ruler. Bleeds to the popover's edges so its fade ends at the panel border. */
+.tape {
+  position: relative;
+  height: 40px;
+  margin: 4px -16px 0;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  --tick: var(--dim);
+}
+
+.tape.is-dragging {
+  cursor: grabbing;
+}
+
+.tape:focus-visible {
+  outline-offset: -2px;
+}
+
+.tape-window {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  mask-image: linear-gradient(to right, transparent, #000 24%, #000 76%, transparent);
+}
+
+/* Minute zero sits at the strip's left edge; translating it puts the chosen minute under the needle. */
+.tape-strip {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  background:
+    linear-gradient(to right, var(--tick) 1px, transparent 1px) 0 0 / calc(var(--minute) * 10) 14px repeat-x,
+    linear-gradient(to right, color-mix(in srgb, var(--tick) 65%, transparent) 1px, transparent 1px) 0 0 /
+      calc(var(--minute) * 5) 9px repeat-x,
+    linear-gradient(to right, color-mix(in srgb, var(--tick) 35%, transparent) 1px, transparent 1px) 0 0 /
+      var(--minute) 5px repeat-x;
+  transition: transform 320ms var(--ease-out);
+}
+
+.tape.is-dragging .tape-strip {
+  transition: none;
+}
+
+.tape-label {
+  position: absolute;
+  top: 21px;
+  color: var(--dim);
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  transform: translateX(-50%);
+}
+
+.tape-needle {
+  position: absolute;
+  top: 0;
+  left: calc(50% - 1px);
+  width: 2px;
+  height: 20px;
+  border-radius: 0 0 1px 1px;
+  background: var(--accent-text);
+}
+
+.length-presets {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.length-preset {
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dim);
+  font-size: 12px;
+  font-weight: 550;
+  transition: background-color 150ms, color 150ms;
+}
+
+.length-preset:hover {
+  background: var(--raised);
+  color: var(--text);
+}
+
+.length-preset[aria-pressed="true"] {
+  background: var(--selected);
+  color: var(--text);
 }
 
 /* Left rail */
@@ -756,14 +1051,14 @@ button:disabled {
 
 .palette[open] {
   display: flex;
-  animation: palette-in 140ms var(--ease-out);
+  animation: pop-in 140ms var(--ease-out);
 }
 
 .palette::backdrop {
   background: var(--scrim);
 }
 
-@keyframes palette-in {
+@keyframes pop-in {
   from {
     opacity: 0;
     transform: translateY(-6px) scale(0.985);
@@ -897,11 +1192,6 @@ li:first-child > .palette-section {
   .title-input {
     flex: 1 1 40px;
     min-width: 40px;
-  }
-
-  .timer {
-    gap: 4px;
-    padding-left: 6px;
   }
 }
 

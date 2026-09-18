@@ -18,9 +18,29 @@ function Icon({ children, size = 16 }: { children: ReactNode; size?: number }) {
   );
 }
 
-export const PlayIcon = () => (
-  <Icon>
+export const PlayIcon = ({ size }: { size?: number }) => (
+  <Icon size={size}>
     <path d="M4.5 2.8v10.4L13 8z" fill="currentColor" stroke="none" />
+  </Icon>
+);
+
+export const PauseIcon = ({ size }: { size?: number }) => (
+  <Icon size={size}>
+    <path d="M4 3h2.8v10H4zM9.200 3H12v10H9.200z" fill="currentColor" stroke="none" />
+  </Icon>
+);
+
+/** Counter-clockwise arrow: back to the start. */
+export const ResetIcon = ({ size }: { size?: number }) => (
+  <Icon size={size}>
+    <path d="M3 8a5 5 0 1 0 5-5 5.400 5.400 0 0 0-3.740 1.520L3 5.800" />
+    <path d="M3 3v2.800h2.800" />
+  </Icon>
+);
+
+export const ChevronDownIcon = ({ size }: { size?: number }) => (
+  <Icon size={size}>
+    <path d="M4 6.200l4 4 4-4" />
   </Icon>
 );
 
