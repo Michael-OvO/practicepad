@@ -12,7 +12,7 @@ interface PendingText {
 }
 
 export function usePythonRunner() {
-  const [status, setStatus] = useState<RunnerStatus>("loading");
+  const [status, setStatus] = useState<RunnerStatus>("idle");
   const [consoleState, setConsoleState] = useState<ConsoleState>(emptyConsole);
   const controllerRef = useRef<RunnerController | null>(null);
   const pendingRef = useRef<PendingText[]>([]);
@@ -46,9 +46,9 @@ export function usePythonRunner() {
         if (timerRef.current === null) timerRef.current = window.setTimeout(commit, COMMIT_INTERVAL_MS);
       },
       clear,
+      awaitingInput: () => {},
     });
     controllerRef.current = controller;
-    controller.start();
 
     return () => {
       controller.dispose();

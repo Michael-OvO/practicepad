@@ -9,12 +9,20 @@ export interface OutputChunk {
   text: string;
 }
 
-export type WorkerRequest = { type: "run"; runId: number; code: string };
+export type WorkerRequest = {
+  type: "run";
+  runId: number;
+  code: string;
+  /** Where the page writes stdin lines; null when the page cannot share memory. */
+  input: SharedArrayBuffer | null;
+};
 
 export type WorkerResponse =
   | { type: "ready" }
   | { type: "status"; runId: number; message: string }
   | { type: "output"; runId: number; chunks: OutputChunk[] }
+  /** The program is blocked reading stdin. */
+  | { type: "input"; runId: number }
   | { type: "done"; runId: number; exitCode: number; durationMs: number }
   | { type: "crashed"; runId: number; message: string }
   | { type: "fatal"; message: string };

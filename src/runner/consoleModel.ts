@@ -1,4 +1,5 @@
-export type ConsoleKind = "stdout" | "stderr" | "system";
+/** `input` is what the user typed for the program, echoed as a terminal would. */
+export type ConsoleKind = "stdout" | "stderr" | "system" | "input";
 
 export interface ConsoleSegment {
   id: number;
