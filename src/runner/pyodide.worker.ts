@@ -1,5 +1,6 @@
 import type { PyodideInterface } from "pyodide";
 import { loadHarness, runProgram, type Harness } from "./harness";
+import { readLine } from "./inputChannel";
 import { OutputBuffer } from "./outputBuffer";
 import { PYODIDE_INDEX_URL, type OutputStream, type WorkerRequest, type WorkerResponse } from "./protocol";
 
@@ -10,7 +11,18 @@ const ctx = self as unknown as {
 };
 
 let currentRunId = 0;
+// Set for the duration of a run whose page can share memory; null means input() is unavailable.
+let currentInput: SharedArrayBuffer | null = null;
 const output = new OutputBuffer((chunks) => ctx.postMessage({ type: "output", runId: currentRunId, chunks }));
+
+/** Called by Pyodide for each stdin read. Blocks this worker until the page answers. */
+function readStdin(): string | null {
+  if (!currentInput) return null;
+  // The prompt input() just printed must reach the console before the field appears.
+  output.flush();
+  ctx.postMessage({ type: "input", runId: currentRunId });
+  return readLine(currentInput);
+}
 
 function writer(stream: OutputStream) {
   const decoder = new TextDecoder();
@@ -32,6 +44,7 @@ async function boot(): Promise<{ pyodide: PyodideInterface; harness: Harness }> 
   const pyodide = await loadPyodide({ indexURL: PYODIDE_INDEX_URL });
   pyodide.setStdout(writer("stdout"));
   pyodide.setStderr(writer("stderr"));
+  pyodide.setStdin({ stdin: readStdin });
   return { pyodide, harness: loadHarness(pyodide) };
 }
 
@@ -42,13 +55,18 @@ runtime.then(
 );
 
 ctx.onmessage = async (event) => {
-  const { runId, code } = event.data;
+  const { runId, code, input } = event.data;
   currentRunId = runId;
+  currentInput = input;
   const startedAt = performance.now();
   try {
     const { pyodide, harness } = await runtime;
-    const exitCode = await runProgram(pyodide, harness, code, (message) =>
-      ctx.postMessage({ type: "status", runId, message }),
+    const exitCode = await runProgram(
+      pyodide,
+      harness,
+      code,
+      (message) => ctx.postMessage({ type: "status", runId, message }),
+      input !== null,
     );
     output.flush();
     ctx.postMessage({ type: "done", runId, exitCode, durationMs: performance.now() - startedAt });
