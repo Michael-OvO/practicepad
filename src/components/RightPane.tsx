@@ -10,7 +10,8 @@ interface RightPaneProps {
   consoleState: ConsoleState;
   status: RunnerStatus;
   padId: string;
-  notes: string;
+  /** Only used when a pad's notes are first shown; after that the textarea owns the text. */
+  initialNotes: string;
   onTabChange(tab: RightTab): void;
   onNotesChange(notes: string): void;
   onClear(): void;
@@ -118,7 +119,7 @@ function OutputPanel({ consoleState, status, onRetry }: RightPaneProps) {
   );
 }
 
-function NotesPanel({ padId, notes, onNotesChange }: RightPaneProps) {
+function NotesPanel({ padId, initialNotes, onNotesChange }: RightPaneProps) {
   return (
     <div id="panel-notes" className="notes-panel" role="tabpanel" aria-labelledby="tab-notes">
       <textarea
@@ -127,7 +128,8 @@ function NotesPanel({ padId, notes, onNotesChange }: RightPaneProps) {
         className="notes-input"
         aria-label="Notes for this pad"
         placeholder="Problem statement, examples, edge cases, your approach. Saved with this pad."
-        value={notes}
+        // Uncontrolled, like the code editor: keystrokes then need no render of the app.
+        defaultValue={initialNotes}
         spellCheck={false}
         onChange={(event) => onNotesChange(event.target.value)}
       />

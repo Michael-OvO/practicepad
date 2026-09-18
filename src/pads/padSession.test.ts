@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PadSession } from "./padSession";
-import { PADS_KEY, activePad, updateCode, type Pad } from "./padStore";
+import { PADS_KEY, activePad, createPad, renamePad, sortedByRecent, updateCode, type Pad } from "./padStore";
 
 function fakeStorage() {
   const data = new Map<string, string>();
@@ -53,6 +53,74 @@ describe("PadSession", () => {
     });
     session.apply((state) => state);
     expect(calls).toBe(0);
+  });
+
+  describe("edit", () => {
+    const FIVE_MINUTES = 5 * 60_000;
+
+    it("keeps the latest text readable synchronously", () => {
+      const session = new PadSession(fakeStorage());
+      const id = activePad(session.getState()).id;
+      session.edit(id, (state) => updateCode(state, id, "print(1)"));
+      expect(activePad(session.getState()).code).toBe("print(1)");
+    });
+
+    it("does not publish keystrokes that change nothing in the pad list", () => {
+      const session = new PadSession(fakeStorage());
+      const id = activePad(session.getState()).id;
+      let calls = 0;
+      session.subscribe(() => {
+        calls += 1;
+      });
+      const snapshot = session.getSnapshot();
+      session.edit(id, (state) => updateCode(state, id, "a"));
+      session.edit(id, (state) => updateCode(state, id, "ab"));
+      expect(calls).toBe(0);
+      expect(session.getSnapshot()).toBe(snapshot);
+    });
+
+    it("publishes an edit that moves the pad to the top of the list", () => {
+      const session = new PadSession(fakeStorage());
+      const older = activePad(session.getState()).id;
+      session.apply((state) => renamePad(state, older, "Old", Date.now() - 1000));
+      session.apply((state) => createPad(state));
+      let calls = 0;
+      session.subscribe(() => {
+        calls += 1;
+      });
+      session.edit(older, (state) => updateCode(state, older, "a"));
+      expect(calls).toBe(1);
+      expect(sortedByRecent(session.getSnapshot().pads)[0].id).toBe(older);
+    });
+
+    it("publishes an edit that refreshes the pad's 'edited' label", () => {
+      const session = new PadSession(fakeStorage());
+      const id = activePad(session.getState()).id;
+      session.apply((state) => renamePad(state, id, "Old", Date.now() - FIVE_MINUTES));
+      let calls = 0;
+      session.subscribe(() => {
+        calls += 1;
+      });
+      session.edit(id, (state) => updateCode(state, id, "a"));
+      expect(calls).toBe(1);
+      session.edit(id, (state) => updateCode(state, id, "ab"));
+      expect(calls).toBe(1);
+    });
+
+    it("reports every change to onChange listeners, keystrokes included", () => {
+      const session = new PadSession(fakeStorage());
+      const id = activePad(session.getState()).id;
+      let changes = 0;
+      const unsubscribe = session.onChange(() => {
+        changes += 1;
+      });
+      session.edit(id, (state) => updateCode(state, id, "a"));
+      session.edit(id, (state) => updateCode(state, id, "ab"));
+      session.apply((state) => createPad(state));
+      unsubscribe();
+      session.apply((state) => createPad(state));
+      expect(changes).toBe(3);
+    });
   });
 
   it("restores saved pads and reports failure when storage is unavailable", () => {
