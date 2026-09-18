@@ -40,10 +40,13 @@ jsDelivr CDN; after that it comes from the browser cache.
 - **Multiple pads, autosaved.** Pads live in `localStorage`. Create, rename, and delete them
   from the pads panel.
 - **Shortcuts.** Cmd/Ctrl+Enter runs the current pad. Cmd/Ctrl+K opens the command palette.
+- **Interactive stdin.** When your program calls `input()` (or reads `sys.stdin`), a field
+  appears in the output where the program is waiting. Enter sends a line; Ctrl+D sends
+  end-of-file.
+- **Python loads on the first Run**, not when the page opens, so an idle tab stays light.
 
 ## Limits
 
-- `input()` is not supported; hard-code your test inputs instead.
 - No threads, subprocesses, or raw sockets (browser sandbox).
 - Packages with native code that Pyodide does not ship (for example `torch` or
   `tensorflow`) cannot be installed.

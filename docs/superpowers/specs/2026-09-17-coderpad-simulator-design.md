@@ -127,8 +127,8 @@ disabled until the new worker posts `ready`.
 
 ### `input()`
 
-Not supported in v1. `input()` raises `RuntimeError("input() is not supported in
-this playground")`.
+Interactive since `2026-09-18-stdin-and-lazy-python-design.md`, which also
+moved Pyodide loading to the first Run.
 
 ## Pads
 
