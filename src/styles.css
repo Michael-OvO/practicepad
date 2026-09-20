@@ -1034,6 +1034,161 @@ button.timer-face:hover,
   }
 }
 
+/* Test cases */
+
+.tests-panel {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  background: var(--console-bg);
+}
+
+.case-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding: 10px 14px 0;
+}
+
+.case-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dim);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.case-chip:hover {
+  color: var(--text);
+}
+
+.case-chip[aria-pressed="true"] {
+  border-color: var(--accent-text);
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent-text) 10%, transparent);
+}
+
+.case-chip.is-passed .case-mark {
+  color: var(--accent-text);
+}
+
+.case-chip.is-failed .case-mark,
+.case-chip.is-error .case-mark {
+  color: var(--danger);
+}
+
+.case-chip.is-running .case-mark {
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.case-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 14px;
+  overflow: auto;
+}
+
+.case-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.case-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.case-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.case-textarea,
+.case-output {
+  min-height: 72px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--editor-bg);
+  color: var(--text);
+  font: 13px/1.55 var(--mono);
+}
+
+.case-textarea {
+  resize: vertical;
+  outline: none;
+}
+
+.case-textarea:focus {
+  border-color: var(--accent-text);
+}
+
+.case-output {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow: auto;
+}
+
+.case-output.is-stderr {
+  margin-top: 4px;
+  color: var(--stderr);
+}
+
+.case-status {
+  font-size: 12px;
+  color: var(--dim);
+}
+
+.case-status.is-passed {
+  color: var(--accent-text);
+}
+
+.case-status.is-failed,
+.case-status.is-error {
+  color: var(--danger);
+}
+
+.case-delete {
+  align-self: flex-start;
+}
+
+.case-hint {
+  flex: 1;
+  padding: 12px 14px;
+}
+
+.tests-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+}
+
+.tests-summary {
+  font-size: 12px;
+  color: var(--dim);
+}
+
 /* Command palette */
 
 .palette {

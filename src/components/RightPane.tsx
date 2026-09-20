@@ -1,9 +1,9 @@
-import { useLayoutEffect, useRef, type KeyboardEvent } from "react";
+import { useLayoutEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
 import { RUN_SHORTCUT_LABEL } from "../platform";
 import type { ConsoleState } from "../runner/consoleModel";
 import type { RunnerStatus } from "../runner/runnerController";
 
-export type RightTab = "output" | "notes";
+export type RightTab = "output" | "tests" | "notes";
 
 interface RightPaneProps {
   tab: RightTab;
@@ -20,10 +20,13 @@ interface RightPaneProps {
   onRetry(): void;
   onInput(line: string): void;
   onEndInput(): void;
+  /** The Test cases tab's content, built by the app since it needs the pad and the runner. */
+  testsPanel: ReactNode;
 }
 
 const TABS: { id: RightTab; label: string }[] = [
   { id: "output", label: "Program Output" },
+  { id: "tests", label: "Test cases" },
   { id: "notes", label: "Notes" },
 ];
 
@@ -34,7 +37,9 @@ export function RightPane(props: RightPaneProps) {
   const onTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
     if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
     event.preventDefault();
-    const next = tab === "output" ? "notes" : "output";
+    const step = event.key === "ArrowRight" ? 1 : -1;
+    const index = TABS.findIndex((candidate) => candidate.id === tab);
+    const next = TABS[(index + step + TABS.length) % TABS.length].id;
     onTabChange(next);
     document.getElementById(`tab-${next}`)?.focus();
   };
@@ -66,7 +71,7 @@ export function RightPane(props: RightPaneProps) {
           </button>
         )}
       </header>
-      {tab === "output" ? <OutputPanel {...props} /> : <NotesPanel {...props} />}
+      {tab === "output" ? <OutputPanel {...props} /> : tab === "tests" ? props.testsPanel : <NotesPanel {...props} />}
     </section>
   );
 }
