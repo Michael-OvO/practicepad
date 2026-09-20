@@ -1,9 +1,18 @@
+export interface TestCase {
+  id: string;
+  /** Fed to the program as stdin. */
+  input: string;
+  /** Compared with stdout; empty means "just show me the output". */
+  expected: string;
+}
+
 export interface Pad {
   id: string;
   title: string;
   code: string;
   /** Free-form notes kept alongside the code (problem statement, approach, edge cases). */
   notes: string;
+  tests: TestCase[];
   createdAt: number;
   updatedAt: number;
 }
@@ -39,7 +48,7 @@ function nextUntitledTitle(pads: Pad[]): string {
 }
 
 function newPad(existing: Pad[], now: number, id: string): Pad {
-  return { id, title: nextUntitledTitle(existing), code: STARTER_CODE, notes: "", createdAt: now, updatedAt: now };
+  return { id, title: nextUntitledTitle(existing), code: STARTER_CODE, notes: "", tests: [], createdAt: now, updatedAt: now };
 }
 
 export function initialState(now: number = Date.now(), id: string = crypto.randomUUID()): PadState {
@@ -76,6 +85,36 @@ export function updateNotes(state: PadState, id: string, notes: string, now: num
   return patchPad(state, id, { notes }, now);
 }
 
+function patchTests(state: PadState, padId: string, update: (tests: TestCase[]) => TestCase[], now: number): PadState {
+  const pad = state.pads.find((candidate) => candidate.id === padId);
+  if (!pad) return state;
+  return patchPad(state, padId, { tests: update(pad.tests) }, now);
+}
+
+function hasTest(state: PadState, padId: string, testId: string): boolean {
+  return state.pads.find((candidate) => candidate.id === padId)?.tests.some((test) => test.id === testId) ?? false;
+}
+
+export function addTest(state: PadState, padId: string, now: number = Date.now(), id: string = crypto.randomUUID()): PadState {
+  return patchTests(state, padId, (tests) => [...tests, { id, input: "", expected: "" }], now);
+}
+
+export function updateTest(
+  state: PadState,
+  padId: string,
+  testId: string,
+  patch: Partial<Pick<TestCase, "input" | "expected">>,
+  now: number = Date.now(),
+): PadState {
+  if (!hasTest(state, padId, testId)) return state;
+  return patchTests(state, padId, (tests) => tests.map((test) => (test.id === testId ? { ...test, ...patch } : test)), now);
+}
+
+export function removeTest(state: PadState, padId: string, testId: string, now: number = Date.now()): PadState {
+  if (!hasTest(state, padId, testId)) return state;
+  return patchTests(state, padId, (tests) => tests.filter((test) => test.id !== testId), now);
+}
+
 export function sortedByRecent(pads: Pad[]): Pad[] {
   return [...pads].sort((a, b) => b.updatedAt - a.updatedAt);
 }
@@ -98,7 +137,13 @@ export function activePad(state: PadState): Pad {
   return state.pads.find((pad) => pad.id === state.activeId) ?? state.pads[0];
 }
 
-function isPad(value: unknown): value is Omit<Pad, "notes"> & { notes?: string } {
+function isTestCase(value: unknown): value is TestCase {
+  if (typeof value !== "object" || value === null) return false;
+  const test = value as Record<string, unknown>;
+  return typeof test.id === "string" && typeof test.input === "string" && typeof test.expected === "string";
+}
+
+function isPad(value: unknown): value is Omit<Pad, "notes" | "tests"> & { notes?: string; tests?: unknown[] } {
   if (typeof value !== "object" || value === null) return false;
   const pad = value as Record<string, unknown>;
   return (
@@ -106,6 +151,7 @@ function isPad(value: unknown): value is Omit<Pad, "notes"> & { notes?: string }
     typeof pad.title === "string" &&
     typeof pad.code === "string" &&
     (pad.notes === undefined || typeof pad.notes === "string") &&
+    (pad.tests === undefined || Array.isArray(pad.tests)) &&
     typeof pad.createdAt === "number" &&
     typeof pad.updatedAt === "number"
   );
@@ -119,8 +165,10 @@ export function loadState(
   if (!storage) return initialState(now, id);
   try {
     const parsed: unknown = JSON.parse(storage.getItem(PADS_KEY) ?? "null");
-    // Pads saved before notes existed load with empty notes.
-    const pads: Pad[] = Array.isArray(parsed) ? parsed.filter(isPad).map((pad) => ({ ...pad, notes: pad.notes ?? "" })) : [];
+    // Pads saved before notes or test cases existed load with them empty.
+    const pads: Pad[] = Array.isArray(parsed)
+      ? parsed.filter(isPad).map((pad) => ({ ...pad, notes: pad.notes ?? "", tests: (pad.tests ?? []).filter(isTestCase) }))
+      : [];
     if (pads.length === 0) return initialState(now, id);
     const saved = storage.getItem(ACTIVE_PAD_KEY);
     const activeId = pads.find((pad) => pad.id === saved)?.id ?? sortedByRecent(pads)[0].id;

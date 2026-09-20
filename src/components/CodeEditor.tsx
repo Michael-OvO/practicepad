@@ -11,6 +11,7 @@ interface CodeEditorProps {
   focusRef: MutableRefObject<(() => void) | null>;
   onChange(code: string): void;
   onRun(): void;
+  onRunTests(): void;
   onOpenPalette(): void;
   onCursorChange(line: number, column: number): void;
 }
@@ -78,6 +79,7 @@ export function CodeEditor(props: CodeEditorProps) {
     (editor, monaco) => {
       // Replaces Monaco's default Cmd/Ctrl+Enter ("insert line below") with Run.
       editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => latest.current.onRun());
+      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.Enter, () => latest.current.onRunTests());
       // Cmd/Ctrl+K is a chord prefix in Monaco; claim it for the command palette instead.
       editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK, () => latest.current.onOpenPalette());
       editor.onDidChangeCursorPosition((event) => {

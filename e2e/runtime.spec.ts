@@ -69,3 +69,30 @@ test("Ctrl+D ends input() with EOFError, and Stop works while waiting", async ({
   await expect(programInput(page)).toHaveCount(0);
   await expect(runButton(page)).toBeEnabled();
 });
+
+test("test cases run the program against fixed stdin and judge the output", async ({ page }) => {
+  await seedPad(page, "n = int(input())\nprint(n * 2)\n");
+  await page.goto("/");
+  await page.getByRole("tab", { name: "Test cases" }).click();
+  await page.getByRole("button", { name: "Add test case" }).click();
+  await page.getByLabel("Test input").fill("2");
+  await page.getByLabel("Expected output").fill("4");
+  await page.getByRole("button", { name: "Add test case" }).click();
+  await page.getByLabel("Test input").fill("5");
+  await page.getByLabel("Expected output").fill("11");
+
+  await page.getByRole("button", { name: "Run tests" }).click();
+  await expect(page.getByText("1 of 2 passed")).toBeVisible();
+  await expect(page.getByLabel("Actual output")).toHaveText("10");
+  await expect(page.getByRole("button", { name: "Case 1" })).toContainText("✓");
+  await expect(page.getByRole("button", { name: "Case 2" })).toContainText("✗");
+
+  await page.getByLabel("Expected output").fill("10");
+  await page.keyboard.press("ControlOrMeta+Shift+Enter");
+  await expect(page.getByText("2 of 2 passed")).toBeVisible();
+
+  await page.reload();
+  await page.getByRole("tab", { name: "Test cases" }).click();
+  await expect(page.getByRole("button", { name: "Case 2" })).toBeVisible();
+  await expect(page.getByLabel("Test input")).toHaveValue("2");
+});

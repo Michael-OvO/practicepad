@@ -8,12 +8,13 @@ import { PadSidebar } from "./components/PadSidebar";
 import { RightPane, type RightTab } from "./components/RightPane";
 import { SplitPane } from "./components/SplitPane";
 import { StatusBar } from "./components/StatusBar";
+import { TestCasesPanel } from "./components/TestCasesPanel";
 import { Timer } from "./components/Timer";
 import { PAD_TITLE_INPUT_ID, TopBar } from "./components/TopBar";
 import { CursorStore } from "./cursorStore";
 import { sortedByRecent } from "./pads/padStore";
 import { usePads } from "./pads/usePads";
-import { PALETTE_SHORTCUT_LABEL, RUN_SHORTCUT_LABEL } from "./platform";
+import { PALETTE_SHORTCUT_LABEL, RUN_SHORTCUT_LABEL, RUN_TESTS_SHORTCUT_LABEL } from "./platform";
 import { usePythonRunner } from "./runner/usePythonRunner";
 import { useTheme } from "./theme/useTheme";
 import { PRESET_MINUTES } from "./timer/timer";
@@ -35,14 +36,19 @@ export function App() {
   const [cursorStore] = useState(() => new CursorStore());
   const focusEditorRef = useRef<(() => void) | null>(null);
 
-  const { active, updateCode, updateNotes, rename, select, create, remove, getActive } = pads;
-  const { run, stop, clear, status } = runner;
+  const { active, updateCode, updateNotes, rename, select, create, remove, addTest, updateTest, removeTest, getActive } = pads;
+  const { run, runTests, stop, clear, status } = runner;
 
   // Read from the pad session, not from render state, so Run sees the very last keystroke.
   const runActive = useCallback(() => {
     setRightTab("output");
     run(getActive().code);
   }, [run, getActive]);
+  const runTestsActive = useCallback(() => {
+    setRightTab("tests");
+    const pad = getActive();
+    runTests(pad.code, pad.tests);
+  }, [runTests, getActive]);
 
   const openPalette = useCallback(() => setPaletteOpen(true), []);
   const closePalette = useCallback(() => setPaletteOpen(false), []);
@@ -53,7 +59,8 @@ export function App() {
       if (event.defaultPrevented || !(event.metaKey || event.ctrlKey)) return;
       if (event.key === "Enter") {
         event.preventDefault();
-        runActive();
+        if (event.shiftKey) runTestsActive();
+        else runActive();
       } else if (event.key.toLowerCase() === "k") {
         event.preventDefault();
         setPaletteOpen((open) => !open);
@@ -61,7 +68,7 @@ export function App() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [runActive]);
+  }, [runActive, runTestsActive]);
 
   // A floating pads panel covers the editor, so get it out of the way once a pad is chosen.
   const closeFloatingSidebar = useCallback(() => {
@@ -82,12 +89,26 @@ export function App() {
   const handleChange = useCallback((code: string) => updateCode(active.id, code), [updateCode, active.id]);
   const handleNotes = useCallback((notes: string) => updateNotes(active.id, notes), [updateNotes, active.id]);
   const handleRename = useCallback((title: string) => rename(active.id, title), [rename, active.id]);
+  const handleAddTest = useCallback((id: string) => addTest(active.id, id), [addTest, active.id]);
+  const handleChangeTest = useCallback(
+    (testId: string, patch: { input?: string; expected?: string }) => updateTest(active.id, testId, patch),
+    [updateTest, active.id],
+  );
+  const handleRemoveTest = useCallback((testId: string) => removeTest(active.id, testId), [removeTest, active.id]);
 
   const commands = useMemo<Command[]>(() => {
     const list: Command[] = [
       status === "running"
         ? { id: "stop", title: "Stop execution", section: "Run", keywords: "kill cancel interrupt", run: stop }
         : { id: "run", title: "Run code", section: "Run", shortcut: RUN_SHORTCUT_LABEL, keywords: "execute", run: runActive },
+      {
+        id: "run-tests",
+        title: "Run test cases",
+        section: "Run",
+        shortcut: RUN_TESTS_SHORTCUT_LABEL,
+        keywords: "check judge cases stdin",
+        run: runTestsActive,
+      },
       { id: "clear", title: "Clear output", section: "Run", keywords: "console reset", run: clear },
 
       { id: "new-pad", title: "New pad", section: "Pads", keywords: "create add", run: handleCreate },
@@ -146,6 +167,7 @@ export function App() {
     list.push(
       { id: "focus-editor", title: "Focus editor", section: "View", keywords: "code", run: () => focusEditorRef.current?.() },
       { id: "show-output", title: "Show program output", section: "View", keywords: "console tab", run: () => setRightTab("output") },
+      { id: "show-tests", title: "Show test cases", section: "View", keywords: "tab", run: () => setRightTab("tests") },
       { id: "show-notes", title: "Show notes", section: "View", keywords: "tab", run: () => setRightTab("notes") },
       {
         id: "toggle-pads",
@@ -165,7 +187,7 @@ export function App() {
       },
     );
     return list;
-  }, [status, stop, runActive, clear, handleCreate, handleSelect, active.id, active.title, remove, pads.pads, timer, sidebarOpen, theme]);
+  }, [status, stop, runActive, runTestsActive, clear, handleCreate, handleSelect, active.id, active.title, remove, pads.pads, timer, sidebarOpen, theme]);
 
   return (
     <div className="app">
@@ -206,6 +228,7 @@ export function App() {
                   focusRef={focusEditorRef}
                   onChange={handleChange}
                   onRun={runActive}
+                  onRunTests={runTestsActive}
                   onOpenPalette={openPalette}
                   onCursorChange={cursorStore.set}
                 />
@@ -226,6 +249,20 @@ export function App() {
               onRetry={runner.retry}
               onInput={runner.provideInput}
               onEndInput={runner.endInput}
+              testsPanel={
+                <TestCasesPanel
+                  // Remounted per pad, so the selected case starts over.
+                  key={active.id}
+                  tests={getActive().tests}
+                  testRun={runner.testRun}
+                  status={status}
+                  onAdd={handleAddTest}
+                  onRemove={handleRemoveTest}
+                  onChange={handleChangeTest}
+                  onRun={runTestsActive}
+                  onStop={stop}
+                />
+              }
             />
           }
         />

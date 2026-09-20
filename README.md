@@ -44,6 +44,9 @@ jsDelivr CDN; after that it comes from the browser cache.
   appears in the output where the program is waiting. Enter sends a line; Ctrl+D sends
   end-of-file.
 - **Python loads on the first Run**, not when the page opens, so an idle tab stays light.
+- **Test cases.** The Test cases tab holds inputs with expected outputs, saved with the pad.
+  Run tests (Cmd/Ctrl+Shift+Enter) runs your program once per case with that input as stdin
+  and marks each case passed or failed; leave the expectation empty to just see the output.
 
 ## Limits
 
