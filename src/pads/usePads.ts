@@ -3,12 +3,16 @@ import { getStorage } from "../storage";
 import { PadSession } from "./padSession";
 import {
   activePad,
+  addTest as addPadTest,
   createPad,
   deletePad,
+  removeTest as removePadTest,
   renamePad,
   selectPad,
   updateCode as updatePadCode,
   updateNotes as updatePadNotes,
+  updateTest as updatePadTest,
+  type TestCase,
 } from "./padStore";
 
 const AUTOSAVE_DELAY_MS = 500;
@@ -67,12 +71,26 @@ export function usePads() {
     [session],
   );
   const remove = useCallback((id: string) => session.apply((current) => deletePad(current, id)), [session]);
+  const addTest = useCallback(
+    (padId: string, id: string) => session.apply((current) => addPadTest(current, padId, Date.now(), id)),
+    [session],
+  );
+  // Typing into a case is a text edit like typing code: it need not re-render the app.
+  const updateTest = useCallback(
+    (padId: string, testId: string, patch: Partial<Pick<TestCase, "input" | "expected">>) =>
+      session.edit(padId, (current) => updatePadTest(current, padId, testId, patch)),
+    [session],
+  );
+  const removeTest = useCallback(
+    (padId: string, testId: string) => session.apply((current) => removePadTest(current, padId, testId)),
+    [session],
+  );
   /** The active pad as of the last keystroke; the rendered `active` lags behind it while typing. */
   const getActive = useCallback(() => activePad(session.getState()), [session]);
 
   return {
     pads: state.pads,
-    /** What React shows about the active pad. Its code and notes lag while typing: see getActive(). */
+    /** What React shows about the active pad. Its code, notes and test text lag while typing: see getActive(). */
     active: activePad(state),
     saveFailed,
     create,
@@ -81,6 +99,9 @@ export function usePads() {
     updateCode,
     updateNotes,
     remove,
+    addTest,
+    updateTest,
+    removeTest,
     getActive,
   };
 }

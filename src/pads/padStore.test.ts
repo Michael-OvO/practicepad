@@ -4,16 +4,19 @@ import {
   PADS_KEY,
   STARTER_CODE,
   activePad,
+  addTest,
   createPad,
   deletePad,
   initialState,
   loadState,
+  removeTest,
   renamePad,
   saveState,
   selectPad,
   sortedByRecent,
   updateCode,
   updateNotes,
+  updateTest,
 } from "./padStore";
 
 function fakeStorage(initial: Record<string, string> = {}) {
@@ -30,7 +33,7 @@ function fakeStorage(initial: Record<string, string> = {}) {
 describe("initialState", () => {
   it("starts with one active pad holding the starter code", () => {
     expect(initialState(1000, "a")).toEqual({
-      pads: [{ id: "a", title: "Untitled pad 1", code: STARTER_CODE, notes: "", createdAt: 1000, updatedAt: 1000 }],
+      pads: [{ id: "a", title: "Untitled pad 1", code: STARTER_CODE, notes: "", tests: [], createdAt: 1000, updatedAt: 1000 }],
       activeId: "a",
     });
   });
@@ -92,6 +95,37 @@ describe("updateNotes", () => {
   });
 });
 
+describe("test cases", () => {
+  it("adds an empty case and bumps updatedAt", () => {
+    const state = addTest(initialState(1, "a"), "a", 40, "t1");
+    expect(activePad(state)).toMatchObject({ tests: [{ id: "t1", input: "", expected: "" }], updatedAt: 40 });
+  });
+
+  it("patches one field of one case", () => {
+    let state = addTest(initialState(1, "a"), "a", 2, "t1");
+    state = addTest(state, "a", 3, "t2");
+    state = updateTest(state, "a", "t2", { input: "3\n" }, 50);
+    expect(activePad(state).tests).toEqual([
+      { id: "t1", input: "", expected: "" },
+      { id: "t2", input: "3\n", expected: "" },
+    ]);
+    expect(activePad(state).updatedAt).toBe(50);
+  });
+
+  it("removes a case", () => {
+    let state = addTest(initialState(1, "a"), "a", 2, "t1");
+    state = removeTest(state, "a", "t1", 60);
+    expect(activePad(state)).toMatchObject({ tests: [], updatedAt: 60 });
+  });
+
+  it("ignores unknown pads and cases", () => {
+    const state = addTest(initialState(1, "a"), "a", 2, "t1");
+    expect(updateTest(state, "a", "nope", { input: "x" })).toBe(state);
+    expect(removeTest(state, "a", "nope")).toBe(state);
+    expect(addTest(state, "nope")).toBe(state);
+  });
+});
+
 describe("deletePad", () => {
   it("activates the most recently updated pad when the active one is deleted", () => {
     let state = createPad(initialState(1, "a"), 2, "b");
@@ -141,7 +175,7 @@ describe("persistence", () => {
   });
 
   it("drops malformed pads and repairs a stale active id", () => {
-    const good = { id: "g", title: "Good", code: "pass", notes: "n", createdAt: 1, updatedAt: 2 };
+    const good = { id: "g", title: "Good", code: "pass", notes: "n", tests: [], createdAt: 1, updatedAt: 2 };
     const storage = fakeStorage({
       [PADS_KEY]: JSON.stringify([good, { id: 7, title: "bad" }, null]),
       [ACTIVE_PAD_KEY]: "gone",
@@ -152,7 +186,15 @@ describe("persistence", () => {
   it("loads pads saved before notes existed, with empty notes", () => {
     const legacy = { id: "old", title: "Old", code: "pass", createdAt: 1, updatedAt: 2 };
     const state = loadState(fakeStorage({ [PADS_KEY]: JSON.stringify([legacy]) }), 5, "n");
-    expect(state.pads).toEqual([{ ...legacy, notes: "" }]);
+    expect(state.pads).toEqual([{ ...legacy, notes: "", tests: [] }]);
+  });
+
+  it("loads pads saved before test cases existed, and drops malformed cases", () => {
+    const legacy = { id: "old", title: "Old", code: "pass", notes: "", createdAt: 1, updatedAt: 2 };
+    const messy = { ...legacy, id: "messy", tests: [{ id: "ok", input: "1", expected: "2" }, { id: 3 }, "junk"] };
+    const state = loadState(fakeStorage({ [PADS_KEY]: JSON.stringify([legacy, messy]) }), 5, "n");
+    expect(state.pads[0].tests).toEqual([]);
+    expect(state.pads[1].tests).toEqual([{ id: "ok", input: "1", expected: "2" }]);
   });
 
   it("reports failure when storage is unavailable or full", () => {
