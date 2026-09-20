@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { WorkerRequest, WorkerResponse } from "./protocol";
+import type { CaseResult, WorkerRequest, WorkerResponse } from "./protocol";
 import { RunnerController, type RunnerStatus, type WorkerFactory } from "./runnerController";
 
 interface FakeWorker {
@@ -14,6 +14,9 @@ function setup() {
   const statuses: RunnerStatus[] = [];
   const texts: string[] = [];
   const waiting: boolean[] = [];
+  const caseResults: CaseResult[] = [];
+  const testMessages: string[] = [];
+  let finished = 0;
   let clears = 0;
 
   const factory: WorkerFactory = (onMessage, onError) => {
@@ -34,6 +37,11 @@ function setup() {
       clears += 1;
     },
     awaitingInput: (value) => waiting.push(value),
+    caseResult: (result) => caseResults.push(result),
+    testsFinished: () => {
+      finished += 1;
+    },
+    testMessage: (message) => testMessages.push(message),
   });
 
   return {
@@ -42,6 +50,9 @@ function setup() {
     statuses,
     texts,
     waiting,
+    caseResults,
+    testMessages,
+    finished: () => finished,
     clears: () => clears,
     lastStatus: () => statuses[statuses.length - 1],
     /** Runs `code` on a fresh controller and reports the worker ready, so the run is under way. */
@@ -275,6 +286,98 @@ describe("RunnerController", () => {
     worker.fail("out of memory");
     expect(running.workers).toHaveLength(2);
     expect(running.lastStatus()).toBe("loading");
+  });
+
+  describe("test runs", () => {
+    const aCase = { id: "a", input: "1" };
+    const aResult = { type: "case" as const, runId: 2, id: "a", stdout: "2\n", stderr: "", exitCode: 0, durationMs: 3, truncated: false };
+
+    /** A controller whose first program run is over, so the worker is ready for a test run. */
+    function ready() {
+      const t = setup();
+      const worker = t.running();
+      worker.send({ type: "done", runId: 1, exitCode: 0, durationMs: 1 });
+      return { ...t, worker, textsBefore: t.texts.length };
+    }
+
+    it("posts the batch, forwards each result, and finishes without touching the console", () => {
+      const t = ready();
+      expect(t.controller.runTests("code", [aCase])).toBe(true);
+      expect(t.lastStatus()).toBe("running");
+      expect(t.worker.posted[1]).toEqual({ type: "test", runId: 2, code: "code", cases: [aCase] });
+
+      t.worker.send(aResult);
+      expect(t.caseResults).toEqual([{ id: "a", stdout: "2\n", stderr: "", exitCode: 0, durationMs: 3, truncated: false }]);
+      t.worker.send({ type: "done", runId: 2, exitCode: 0, durationMs: 5 });
+      expect(t.finished()).toBe(1);
+      expect(t.lastStatus()).toBe("ready");
+      expect(t.texts).toHaveLength(t.textsBefore);
+      expect(t.clears()).toBe(1);
+    });
+
+    it("routes package messages to the panel, not the console", () => {
+      const t = ready();
+      t.controller.runTests("import numpy", [aCase]);
+      t.worker.send({ type: "status", runId: 2, message: "Loading numpy…" });
+      expect(t.testMessages).toEqual(["Loading numpy…"]);
+      expect(t.texts).toHaveLength(t.textsBefore);
+    });
+
+    it("stopping a test run finishes it without a console line", () => {
+      const t = ready();
+      t.controller.runTests("while True: pass", [aCase]);
+      t.controller.stop();
+      expect(t.finished()).toBe(1);
+      expect(t.texts).toHaveLength(t.textsBefore);
+      expect(t.workers).toHaveLength(2);
+      expect(t.lastStatus()).toBe("loading");
+    });
+
+    it("ignores results from an earlier test run", () => {
+      const t = ready();
+      t.controller.runTests("code", [aCase]);
+      t.worker.send({ type: "done", runId: 2, exitCode: 0, durationMs: 1 });
+      t.controller.runTests("code", [aCase]);
+      t.worker.send(aResult);
+      expect(t.caseResults).toEqual([]);
+      expect(t.finished()).toBe(1);
+    });
+
+    it("queues a test run from idle and runs it once Python is ready", () => {
+      const t = setup();
+      expect(t.controller.runTests("code", [aCase])).toBe(true);
+      expect(t.lastStatus()).toBe("loading");
+      expect(t.texts).toEqual(["system:Loading Python… (first run only)\n"]);
+      t.workers[0].send({ type: "ready" });
+      expect(t.workers[0].posted).toEqual([{ type: "test", runId: 1, code: "code", cases: [aCase] }]);
+      expect(t.lastStatus()).toBe("running");
+    });
+
+    it("declines a test run while something is running", () => {
+      const t = setup();
+      const worker = t.running();
+      expect(t.controller.runTests("code", [aCase])).toBe(false);
+      expect(worker.posted).toHaveLength(1);
+    });
+
+    it("finishes a queued test run when Python fails to load", () => {
+      const t = setup();
+      t.controller.runTests("code", [aCase]);
+      t.workers[0].send({ type: "fatal", message: "Failed to fetch" });
+      expect(t.finished()).toBe(1);
+      expect(t.lastStatus()).toBe("error");
+    });
+
+    it("keeps the program's own run path unchanged after a test run", () => {
+      const t = ready();
+      t.controller.runTests("code", [aCase]);
+      t.worker.send({ type: "done", runId: 2, exitCode: 0, durationMs: 1 });
+      t.controller.run("print(3)");
+      expect(t.clears()).toBe(2);
+      t.worker.send({ type: "done", runId: 3, exitCode: 0, durationMs: 10 });
+      expect(t.texts[t.texts.length - 1]).toBe("system:Finished in 0.01s\n");
+      expect(t.finished()).toBe(1);
+    });
   });
 
   it("silences a disposed worker", () => {
