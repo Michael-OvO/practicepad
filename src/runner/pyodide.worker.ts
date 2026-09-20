@@ -3,6 +3,7 @@ import { loadHarness, runProgram, type Harness } from "./harness";
 import { readLine } from "./inputChannel";
 import { OutputBuffer } from "./outputBuffer";
 import { PYODIDE_INDEX_URL, type OutputStream, type WorkerRequest, type WorkerResponse } from "./protocol";
+import { runCases } from "./testBatch";
 
 // Typed by hand: the DOM and WebWorker TypeScript libs conflict when both are loaded.
 const ctx = self as unknown as {
@@ -54,10 +55,8 @@ runtime.then(
   (error) => ctx.postMessage({ type: "fatal", message: describe(error) }),
 );
 
-ctx.onmessage = async (event) => {
-  if (event.data.type !== "run") return;
-  const { runId, code, input } = event.data;
-  currentRunId = runId;
+async function runOnce(request: Extract<WorkerRequest, { type: "run" }>): Promise<void> {
+  const { runId, code, input } = request;
   currentInput = input;
   const startedAt = performance.now();
   try {
@@ -76,4 +75,36 @@ ctx.onmessage = async (event) => {
     output.flush();
     ctx.postMessage({ type: "crashed", runId, message: describe(error) });
   }
+}
+
+/** Test cases: each gets its input as stdin and its output captured, so the console sees nothing. */
+async function runTests(request: Extract<WorkerRequest, { type: "test" }>): Promise<void> {
+  const { runId, code, cases } = request;
+  currentInput = null;
+  const startedAt = performance.now();
+  try {
+    const { pyodide, harness } = await runtime;
+    await runCases(
+      pyodide,
+      harness,
+      code,
+      cases,
+      (result) => ctx.postMessage({ type: "case", runId, ...result }),
+      (message) => ctx.postMessage({ type: "status", runId, message }),
+      () => {
+        pyodide.setStdout(writer("stdout"));
+        pyodide.setStderr(writer("stderr"));
+        pyodide.setStdin({ stdin: readStdin });
+      },
+    );
+    ctx.postMessage({ type: "done", runId, exitCode: 0, durationMs: performance.now() - startedAt });
+  } catch (error) {
+    ctx.postMessage({ type: "crashed", runId, message: describe(error) });
+  }
+}
+
+ctx.onmessage = async (event) => {
+  currentRunId = event.data.runId;
+  if (event.data.type === "test") await runTests(event.data);
+  else await runOnce(event.data);
 };

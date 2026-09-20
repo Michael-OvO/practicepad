@@ -1,7 +1,8 @@
 import { loadPyodide, type PyodideInterface } from "pyodide";
 import { beforeAll, describe, expect, it } from "vitest";
 import { loadHarness, runProgram, type Harness } from "../src/runner/harness";
-import { PYODIDE_VERSION } from "../src/runner/protocol";
+import { PYODIDE_VERSION, type CaseResult } from "../src/runner/protocol";
+import { CAPTURE_LIMIT, runCases } from "../src/runner/testBatch";
 
 let pyodide: PyodideInterface;
 let harness: Harness;
@@ -151,5 +152,45 @@ describe("python harness", () => {
     expect(result.statuses.some((message) => message.startsWith("Could not install definitely_not_a_real_pkg_xyz"))).toBe(true);
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("ModuleNotFoundError: No module named 'definitely_not_a_real_pkg_xyz'");
+  });
+
+  describe("runCases", () => {
+    // Puts this file's own capture writers back, the way the worker restores its console writers.
+    const restoreCapture = () => {
+      pyodide.setStdout(capture((text) => (stdout += text)));
+      pyodide.setStderr(capture((text) => (stderr += text)));
+    };
+
+    async function batch(code: string, inputs: string[]) {
+      const results: CaseResult[] = [];
+      const cases = inputs.map((input, index) => ({ id: `c${index}`, input }));
+      await runCases(pyodide, harness, code, cases, (result) => results.push(result), () => {}, restoreCapture);
+      return results;
+    }
+
+    it("runs the program once per case with that case's stdin", async () => {
+      const results = await batch("n = int(input())\nprint(n * 2)", ["2\n", "21"]);
+      expect(results.map((result) => [result.id, result.stdout, result.exitCode])).toEqual([
+        ["c0", "4\n", 0],
+        ["c1", "42\n", 0],
+      ]);
+    });
+
+    it("gives EOFError when a case reads past its input", async () => {
+      const [result] = await batch("input()\ninput()", ["only one line"]);
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("EOFError");
+    });
+
+    it("caps captured output and says so", async () => {
+      const [result] = await batch('print("x" * 100000)', [""]);
+      expect(result.truncated).toBe(true);
+      expect(result.stdout.length).toBe(CAPTURE_LIMIT);
+    });
+
+    it("restores the previous streams afterwards", async () => {
+      await batch('print("in batch")', [""]);
+      expect((await run('print("after")')).stdout).toBe("after\n");
+    });
   });
 });
