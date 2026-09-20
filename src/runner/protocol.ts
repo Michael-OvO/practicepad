@@ -9,13 +9,33 @@ export interface OutputChunk {
   text: string;
 }
 
-export type WorkerRequest = {
-  type: "run";
-  runId: number;
-  code: string;
-  /** Where the page writes stdin lines; null when the page cannot share memory. */
-  input: SharedArrayBuffer | null;
-};
+/** One test case as the worker sees it: its stdin. */
+export interface TestInput {
+  id: string;
+  input: string;
+}
+
+/** What one test case produced. */
+export interface CaseResult {
+  id: string;
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+  durationMs: number;
+  /** Output hit the capture limit and the rest was dropped. */
+  truncated: boolean;
+}
+
+export type WorkerRequest =
+  | {
+      type: "run";
+      runId: number;
+      code: string;
+      /** Where the page writes stdin lines; null when the page cannot share memory. */
+      input: SharedArrayBuffer | null;
+    }
+  /** Run the program once per case, each with its input as stdin and its output captured. */
+  | { type: "test"; runId: number; code: string; cases: TestInput[] };
 
 export type WorkerResponse =
   | { type: "ready" }
@@ -23,6 +43,8 @@ export type WorkerResponse =
   | { type: "output"; runId: number; chunks: OutputChunk[] }
   /** The program is blocked reading stdin. */
   | { type: "input"; runId: number }
+  /** One test case finished; `done` follows the last one. */
+  | ({ type: "case"; runId: number } & CaseResult)
   | { type: "done"; runId: number; exitCode: number; durationMs: number }
   | { type: "crashed"; runId: number; message: string }
   | { type: "fatal"; message: string };

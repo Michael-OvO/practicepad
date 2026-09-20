@@ -57,6 +57,13 @@ function setup() {
 
 const channelState = (channel: SharedArrayBuffer | null) => new Int32Array(channel!)[0];
 
+/** The stdin channel a worker was handed with its first run message. */
+function inputOf(worker: FakeWorker): SharedArrayBuffer | null {
+  const message = worker.posted[0];
+  if (message.type !== "run") throw new Error(`expected a run message, got ${message.type}`);
+  return message.input;
+}
+
 describe("RunnerController", () => {
   it("has no worker until the first run, which loads Python and then runs", () => {
     const t = setup();
@@ -88,7 +95,7 @@ describe("RunnerController", () => {
   it("gives each run a channel for stdin", () => {
     const t = setup();
     const worker = t.running();
-    expect(worker.posted[0].input).toBeInstanceOf(SharedArrayBuffer);
+    expect(inputOf(worker)).toBeInstanceOf(SharedArrayBuffer);
   });
 
   it("clears the console and posts the code when a later run starts", () => {
@@ -149,7 +156,7 @@ describe("RunnerController", () => {
       t.controller.provideInput("Ada");
       expect(t.waiting).toEqual([true, false]);
       expect(t.texts[t.texts.length - 1]).toBe("input:Ada\n");
-      const channel = worker.posted[0].input!;
+      const channel = inputOf(worker)!;
       const header = new Int32Array(channel);
       expect(header[0]).toBe(1);
       expect(new TextDecoder().decode(new Uint8Array(channel, 8, header[1]))).toBe("Ada");
@@ -163,7 +170,7 @@ describe("RunnerController", () => {
       t.controller.endInput();
       expect(t.waiting).toEqual([true, false]);
       expect(t.texts).toHaveLength(before);
-      expect(channelState(worker.posted[0].input)).toBe(2);
+      expect(channelState(inputOf(worker))).toBe(2);
     });
 
     it("ignores input when nothing is waiting for it", () => {
@@ -172,7 +179,7 @@ describe("RunnerController", () => {
       t.controller.provideInput("stray");
       t.controller.endInput();
       expect(t.waiting).toEqual([]);
-      expect(channelState(worker.posted[0].input)).toBe(0);
+      expect(channelState(inputOf(worker))).toBe(0);
     });
 
     it("stops waiting when the run is stopped", () => {

@@ -55,6 +55,7 @@ runtime.then(
 );
 
 ctx.onmessage = async (event) => {
+  if (event.data.type !== "run") return;
   const { runId, code, input } = event.data;
   currentRunId = runId;
   currentInput = input;
